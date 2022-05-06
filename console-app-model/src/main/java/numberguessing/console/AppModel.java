@@ -10,20 +10,23 @@ public class AppModel {
             3: Exit
             Enter selection:\040""";
 
+    @FunctionalInterface
+    interface Processor {
+
+        Processor run(String input);
+    }
+
 
     private final PositiveIntegerGenerator generator;
-    private int answer;
     private String output;
     private boolean completed;
-    private boolean singlePlayerMode;
-    private int tries;
+    private Processor processor;
 
     public AppModel(PositiveIntegerGenerator generator) {
         this.completed = false;
         this.output = SELECT_MODE_MESSAGE;
         this.generator = generator;
-        this.singlePlayerMode = false;
-        this.tries = 0;
+        this.processor = this::processModeSelection;
     }
 
     public boolean isCompleted() {
@@ -35,43 +38,43 @@ public class AppModel {
     }
 
     public void processInput(String input) {
-        if (singlePlayerMode) {
-            processSinglePlayerGame(input);
-        } else {
-            processModeSelection(input);
-        }
+        this.processor = this.processor.run(input);
     }
 
-    private void processSinglePlayerGame(String input) {
-        tries++;
-        int guess = Integer.parseInt(input);
-        if (guess < answer) {
-            this.output = """
-                    Your guess is too low.
-                    Enter your guess:\040
-                    """;
-        } else if (guess > answer) {
-            this.output = """
-                    Your guess is too high.
-                    Enter your guess:\040
-                    """;
-        } else {
-            this.output = "Correct! " + tries + (tries == 1 ? " guess.\n" : " guesses.\n") + SELECT_MODE_MESSAGE;
-            this.singlePlayerMode = false;
-        }
-    }
-
-    private void processModeSelection(String input) {
+    private Processor processModeSelection(String input) {
         if (input.equals("1")) {
             this.output = """
                     Single player game
                     I'm thinking of a number between 1 and 100.
                     Enter your guess:\040
                     """;
-            this.singlePlayerMode = true;
-            answer = generator.generateLessThanOrEqualToHundred();
+            int answer = generator.generateLessThanOrEqualToHundred();
+            return getSinglePlayerProcessor(answer, 1);
         } else {
             completed = true;
+            return null;
         }
+    }
+
+    private Processor getSinglePlayerProcessor(int answer, int tries) {
+        return input -> {
+            int guess = Integer.parseInt(input);
+            if (guess < answer) {
+                AppModel.this.output = """
+                        Your guess is too low.
+                        Enter your guess:\040
+                        """;
+                return AppModel.this.getSinglePlayerProcessor(answer, tries + 1);
+            } else if (guess > answer) {
+                AppModel.this.output = """
+                        Your guess is too high.
+                        Enter your guess:\040
+                        """;
+                return AppModel.this.getSinglePlayerProcessor(answer, tries + 1);
+            } else {
+                AppModel.this.output = "Correct! " + tries + (tries == 1 ? " guess.\n" : " guesses.\n") + SELECT_MODE_MESSAGE;
+                return AppModel.this::processModeSelection;
+            }
+        };
     }
 }
